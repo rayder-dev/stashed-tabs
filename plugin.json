@@ -1,0 +1,51 @@
+{
+  "id": "tab-stashes",
+  "name": "Stashed Tabs",
+  "names": { "ru": "Отложенные вкладки" },
+  "version": "1.0.0",
+  "minBrowserVersion": "0.2.0",
+  "description": "Stash your open tabs into named lists and bring them back later.",
+  "descriptions": {
+    "ru": "Откладывайте открытые вкладки в именованные наборы и возвращайте их позже."
+  },
+  "author": "rayder-dev",
+  "permissions": ["storage", "tabs_snapshot", "tabs_open", "tabs_close", "ui", "legacy_stashes"],
+  "background": { "script": "background.js" },
+  "icon": "icon.svg",
+  "ui": {
+    "page": "page.html",
+    "toolbarButton": {
+      "icon": "icon.svg",
+      "title": "Stash all tabs",
+      "titles": { "ru": "Отложить все вкладки" }
+    },
+    "extraButtons": [
+      {
+        "command": "open-list",
+        "placement": "tabsStart",
+        "action": "view",
+        "icon": "list-icon.svg",
+        "title": "Open stashed tabs",
+        "titles": { "ru": "Открыть отложенные вкладки" }
+      }
+    ],
+    "commands": [
+      {
+        "id": "stash-tab",
+        "title": "Stash tab",
+        "titles": { "ru": "Отложить вкладку" }
+      },
+      {
+        "id": "stash-all",
+        "title": "Stash all tabs",
+        "takesText": true,
+        "titles": { "ru": "Отложить все вкладки" }
+      },
+      {
+        "id": "open-list",
+        "title": "Open stashed tabs",
+        "titles": { "ru": "Открыть отложенные вкладки" }
+      }
+    ]
+  }
+}
