@@ -9,17 +9,21 @@
 //             newest is decided by createdAt (ms since epoch); name "" means
 //             "show how many tabs it holds" (the page words that per language)
 //   settings  { showButtons: boolean }
+//   collapsed { [stashId]: true }  the stashes folded to their header
 //   migrated  true once the stashes the browser itself used to keep were copied
 //
 // Rules carried over from the browser's own implementation:
 //   * restoring never deletes a stash; deleting is a separate act
 //   * names are not unique, ids are the identity
 //   * an empty set is refused; a stash that loses its last tab is removed
-//   * at most 100 stashes, the oldest go first
+//   * at most 1000 stashes, the oldest go first
 //   * pinned and private tabs are never stashed (the browser leaves them out
 //     of the snapshot)
 (function () {
-  var MAX_STASHES = 100;
+  // The plugin's whole storage is capped at 5 MB by the browser; a thousand
+  // stashes of a few dozen tabs fit. A save that does not fit fails and closes
+  // nothing.
+  var MAX_STASHES = 1000;
   var MAX_IMPORT_TABS_PER_STASH = 200;
 
   // The window that last used the plugin's button, commands or page. The page
@@ -74,6 +78,27 @@
     };
   }
 
+  // The tabs without a second one at an address already seen.
+  function uniqueByUrl(tabs) {
+    var seen = {};
+    return tabs.filter(function (tab) {
+      if (seen[tab.url]) return false;
+      seen[tab.url] = true;
+      return true;
+    });
+  }
+
+  // The groups that at least one of `tabs` belongs to.
+  function usedGroups(tabs, groups) {
+    var used = {};
+    tabs.forEach(function (tab) {
+      if (tab.groupId) used[String(tab.groupId)] = true;
+    });
+    return (groups || []).filter(function (group) {
+      return used[String(group.id)];
+    });
+  }
+
   // The list with one more stash in it, or null for an empty set.
   function withStash(list, name, tabs, groups) {
     if (!tabs.length) return null;
@@ -119,13 +144,39 @@
     );
   }
 
+  // The tabs to stash. The browser only knows "all" and "active", so the tabs
+  // to the left or right of the current one are cut from the whole list. When
+  // the current tab is not an ordinary page (it is not in the list) nothing is
+  // stashed.
+  function takeSnapshot(windowLabel, scope) {
+    if (scope !== "left" && scope !== "right") {
+      return driftPlugin.tabs.snapshot({ windowLabel: windowLabel, scope: scope });
+    }
+    var none = { tabs: [], groups: [] };
+    return driftPlugin.tabs.snapshot({ windowLabel: windowLabel, scope: "active" }).then(function (active) {
+      var current = active.tabs[0];
+      if (!current) return none;
+      return driftPlugin.tabs.snapshot({ windowLabel: windowLabel, scope: "all" }).then(function (all) {
+        var at = -1;
+        all.tabs.forEach(function (tab, index) {
+          if (tab.id === current.id) at = index;
+        });
+        if (at === -1) return none;
+        var tabs = scope === "left" ? all.tabs.slice(0, at) : all.tabs.slice(at + 1);
+        return { tabs: tabs, groups: usedGroups(tabs, all.groups) };
+      });
+    });
+  }
+
   function stashWindowNow(windowLabel, scope, name) {
-    return driftPlugin.tabs.snapshot({ windowLabel: windowLabel, scope: scope }).then(function (snapshot) {
+    return takeSnapshot(windowLabel, scope).then(function (snapshot) {
       if (!snapshot.tabs.length) return 0;
-      var tabs = snapshot.tabs.map(cleanTab);
+      // A second tab at the same address is closed with the rest but not kept.
+      var tabs = uniqueByUrl(snapshot.tabs.map(cleanTab));
+      var groups = usedGroups(tabs, snapshot.groups);
       return serial(function () {
         return readStashes().then(function (list) {
-          return writeStashes(withStash(list, name, tabs, snapshot.groups));
+          return writeStashes(withStash(list, name, tabs, groups));
         });
       })
         .then(function () {
@@ -218,6 +269,8 @@
     if (id === "open-list") return driftPlugin.ui.openPage({ windowLabel: windowLabel });
     if (id === "stash-tab") return stashWindow(windowLabel, "active", "");
     if (id === "stash-all") return stashWindow(windowLabel, "all", context.text || "");
+    if (id === "stash-left") return stashWindow(windowLabel, "left", "");
+    if (id === "stash-right") return stashWindow(windowLabel, "right", "");
     if (id === "@toolbar") return stashWindow(windowLabel, "all", "");
     return null;
   }
@@ -273,7 +326,7 @@
         var outcome = edit(list);
         if (outcome.error) return fail(outcome.error);
         return writeStashes(outcome.list).then(function () {
-          return { ok: true };
+          return Object.assign({ ok: true }, outcome.extra);
         });
       });
     });
@@ -310,12 +363,44 @@
 
   // Drops the groups no tab belongs to any more.
   function pruneGroups(stash) {
-    var used = {};
-    stash.tabs.forEach(function (tab) {
-      if (tab.groupId) used[String(tab.groupId)] = true;
+    stash.groups = usedGroups(stash.tabs, stash.groups);
+  }
+
+  // A stash the page hands back (undoing a delete): the same checks as for one
+  // copied from the browser, and only http(s) addresses.
+  function cleanReturned(stash) {
+    var clean = fromBrowser(stash || {});
+    clean.tabs = clean.tabs.filter(function (tab) {
+      return /^https?:\/\//i.test(tab.url);
     });
-    stash.groups = (stash.groups || []).filter(function (group) {
-      return used[String(group.id)];
+    pruneGroups(clean);
+    return clean;
+  }
+
+  // Ids of the stashes that still exist, as a lookup.
+  function idsOf(list) {
+    var ids = {};
+    list.forEach(function (stash) {
+      ids[stash.id] = true;
+    });
+    return ids;
+  }
+
+  // Remembers which stashes are folded; forgets the ones that are gone.
+  function setCollapsed(message) {
+    return serial(function () {
+      return Promise.all([readStashes(), driftPlugin.storage.get("collapsed")]).then(function (values) {
+        var ids = idsOf(values[0]);
+        var current = values[1] && typeof values[1] === "object" ? values[1] : {};
+        var next = {};
+        Object.keys(ids).forEach(function (id) {
+          var folded = message.all ? message.value === true : id === message.id ? message.value === true : current[id] === true;
+          if (folded) next[id] = true;
+        });
+        return driftPlugin.storage.set("collapsed", next).then(function () {
+          return { ok: true };
+        });
+      });
     });
   }
 
@@ -333,14 +418,51 @@
           return { list: list };
         });
 
+      // Hands the stash back so the page can offer to undo.
       case "remove":
         return change(function (list) {
+          var removed = null;
           return {
             list: list.filter(function (stash) {
-              return stash.id !== message.id;
+              if (stash.id !== message.id) return true;
+              removed = stash;
+              return false;
             }),
+            extra: { removed: removed },
           };
         });
+
+      // Puts back a stash that was just deleted, where its date puts it.
+      case "restoreStash":
+        return change(function (list) {
+          var stash = cleanReturned(message.stash);
+          if (!stash.tabs.length || idsOf(list)[stash.id]) return { list: list };
+          var next = list.concat([stash]);
+          if (next.length > MAX_STASHES) {
+            next.sort(function (a, b) {
+              return b.createdAt - a.createdAt;
+            });
+            next = next.slice(0, MAX_STASHES);
+          }
+          return { list: next };
+        });
+
+      // Takes out a second tab at an address already in the stash.
+      case "dedupe":
+        return change(function (list) {
+          var removed = 0;
+          list.forEach(function (stash) {
+            if (stash.id !== message.id) return;
+            var before = stash.tabs.length;
+            stash.tabs = uniqueByUrl(stash.tabs);
+            removed = before - stash.tabs.length;
+            pruneGroups(stash);
+          });
+          return { list: list, extra: { removed: removed } };
+        });
+
+      case "setCollapsed":
+        return setCollapsed(message);
 
       // Drops one tab, and the stash itself if that was its last.
       case "removeTab":
@@ -364,6 +486,39 @@
         return findStash(message.id).then(function (stash) {
           if (!stash) return fail("gone");
           return open(stash.tabs, stash.groups || []);
+        });
+
+      // Restores a stash and, once it is open, deletes it. The deleted stash
+      // comes back so the page can offer to undo.
+      case "restoreAndRemove":
+        return findStash(message.id).then(function (stash) {
+          if (!stash) return fail("gone");
+          return open(stash.tabs, stash.groups || []).then(function () {
+            return change(function (list) {
+              return {
+                list: list.filter(function (candidate) {
+                  return candidate.id !== message.id;
+                }),
+                extra: { removed: stash },
+              };
+            });
+          });
+        });
+
+      // The ticked tabs of one stash, each with the group it was in.
+      case "restoreTabs":
+        return findStash(message.id).then(function (stash) {
+          if (!stash) return fail("gone");
+          var taken = {};
+          var tabs = [];
+          (Array.isArray(message.tabs) ? message.tabs : []).forEach(function (pick) {
+            var at = tabIndex(stash, pick || {});
+            if (at === -1 || taken[at]) return;
+            taken[at] = true;
+            tabs.push(stash.tabs[at]);
+          });
+          if (!tabs.length) return fail("gone");
+          return open(tabs, usedGroups(tabs, stash.groups));
         });
 
       case "restoreTab":
@@ -414,7 +569,7 @@
       })
       .catch(function (error) {
         log(error);
-        return fail("failed");
+        return fail(/storage is full/i.test(String(error && error.message ? error.message : error)) ? "full" : "failed");
       });
   });
 })();

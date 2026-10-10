@@ -42,6 +42,16 @@
         "titles": { "ru": "Отложить все вкладки" }
       },
       {
+        "id": "stash-left",
+        "title": "Stash tabs to the left",
+        "titles": { "ru": "Отложить вкладки слева" }
+      },
+      {
+        "id": "stash-right",
+        "title": "Stash tabs to the right",
+        "titles": { "ru": "Отложить вкладки справа" }
+      },
+      {
         "id": "open-list",
         "title": "Open stashed tabs",
         "titles": { "ru": "Открыть отложенные вкладки" }
