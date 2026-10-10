@@ -2,7 +2,7 @@
   "id": "tab-stashes",
   "name": "Stashed Tabs",
   "names": { "ru": "Отложенные вкладки" },
-  "version": "1.0.0",
+  "version": "1.0.2",
   "minBrowserVersion": "0.2.0",
   "description": "Stash your open tabs into named lists and bring them back later.",
   "descriptions": {
