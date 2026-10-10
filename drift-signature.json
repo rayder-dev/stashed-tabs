@@ -1,14 +1,14 @@
 {
   "version": 1,
   "files": {
-    "README.md": "c108471fa71ecf05ca4ef9bae06cfa347f70daf8366317f23bf362f563bf44a1",
-    "background.js": "7c49c6a1c793d04e37667159d6eeddfc8a0222e086f19617a6b58f228b01652a",
+    "README.md": "3896cf9415b285d4c25a9c420eeee51335680963d68ed6e55416bfc7ef72461f",
+    "background.js": "5d4d44a59f979282b76cd9466b95e178e4e04113ae90b3883de1408f48e8b392",
     "icon.svg": "b4531ae7900860a564470e35e13e3a08ccba08b9e4e518be8ef746190d2d353d",
     "list-icon.svg": "cf5a7f82265e2f9590ecfbaedebbfbb68dd991491866982f86e4fcfefcce1bb1",
-    "page.css": "71947d567fb818a6505bf4d10c8c0ddaa3b9dd3942f62583e45d5257a0854a24",
+    "page.css": "5c804c03c79674477eef5acc94b073a26414ac815184a59505b4ad8c128cb4a8",
     "page.html": "3964774c644f782cef83b219ff9264cd426d4784b8449931f50edf0ba4e2169f",
-    "page.js": "c54e83c26f2055f00a79c9ed39f1b056628c9e15174159460e0bcb9e77fa9e0d",
-    "plugin.json": "0becc52d4a21355f2e57f7f97f7529c4cc19839c27f0799ff3a0ea1b2126887a"
+    "page.js": "e5e426019a289c0b17d0d6e0cc0c7794c46fadd43b78ad6af0237f607e5559e2",
+    "plugin.json": "8b8117cf7857cd7d0fe4a88eb6ea47b47df95032f05c5e7f591796cae24dc7de"
   },
-  "signature": "6sNEqekMJMrhFpyfco9MweBjuiK96zS15JGYhH2mvt2cBJwQzEVv6bMnLH1gNAccgWc0B0qXPSxOnduHssVSDw=="
+  "signature": "2kkroAcN1bYQUvfxymOfJqMVy9DQj5/g82/qzkgZIng1UqMcyYM0/s94H4FUaWh7YZeMGt3GJHlszjpZLeJGDw=="
 }
